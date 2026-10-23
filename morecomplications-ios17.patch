@@ -606,31 +606,36 @@
  include $(THEOS_MAKE_PATH)/bundle.mk
 --- a/prefs/Resources/Root.plist
 +++ b/prefs/Resources/Root.plist
-@@ -5,7 +5,7 @@
+@@ -4,20 +4,22 @@
+ <dict>
  	<key>name</key>
  	<string>MoreComplications</string>
- 	<key>subtitle</key>
+-	<key>subtitle</key>
 -	<string>By Skitty</string>
-+	<string>iOS 17 移植 · DeepSeek (AI)</string>
  	<key>titleFontSize</key>
  	<real>38</real>
- 	<key>subtitleFontSize</key>
-@@ -20,6 +20,14 @@
+-	<key>subtitleFontSize</key>
+-	<real>26</real>
+ 	<key>tintColor</key>
+ 	<string>#53b567</string>
+ 	<key>textColor</key>
+ 	<string>#ffffff</string>
+-	<key>subtitleTextColor</key>
+-	<string>#ffffffc0</string>
+ 	<key>items</key>
  	<array>
- 		<dict>
- 			<key>cell</key>
++		<dict>
++			<key>cell</key>
 +			<string>PSGroupCell</string>
 +			<key>label</key>
 +			<string>总开关</string>
 +			<key>footerText</key>
 +			<string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
 +		</dict>
-+		<dict>
-+			<key>cell</key>
+ 		<dict>
+ 			<key>cell</key>
  			<string>PSSwitchCell</string>
- 			<key>default</key>
- 			<true/>
-@@ -30,15 +38,15 @@
+@@ -30,15 +32,15 @@
  			<key>key</key>
  			<string>enabled</string>
  			<key>label</key>
@@ -649,7 +654,7 @@
  		</dict>
  		<dict>
  			<key>cellClass</key>
-@@ -52,21 +60,39 @@
+@@ -52,21 +54,45 @@
  			<key>min</key>
  			<real>1</real>
  			<key>max</key>
@@ -664,18 +669,24 @@
  		<dict>
  			<key>cell</key>
  			<string>PSGroupCell</string>
++			<key>label</key>
++			<string>布局功能</string>
 +			<key>footerText</key>
-+			<string>下面的高级选项可以按行指定「放几个、怎么对齐」。不填就是现在的自动分行 + 居中。</string>
++			<string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
 +		</dict>
 +		<dict>
-+			<key>cell</key>
-+			<string>PSChildPaneSpecifier</string>
++			<key>cellClass</key>
++			<string>MCTextFieldCell</string>
++			<key>defaults</key>
++			<string>xyz.skitty.morecomplications</string>
++			<key>PostNotification</key>
++			<string>xyz.skitty.morecomplications.prefschanged</string>
++			<key>key</key>
++			<string>rowLayout</string>
 +			<key>label</key>
-+			<string>高级选项</string>
-+			<key>title</key>
-+			<string>高级选项</string>
-+			<key>File</key>
-+			<string>Advanced</string>
++			<string>布局</string>
++			<key>placeholder</key>
++			<string>2C 1J</string>
 +		</dict>
 +		<dict>
 +			<key>cell</key>
@@ -700,11 +711,11 @@
 +			<string>鸣谢</string>
  			<key>footerText</key>
 -			<string>© Skitty 2024</string>
-+			<string>© Skitty 2024（原作者）· iOS 17 移植、构建与打包：DeepSeek (AI)</string>
++			<string>© Skitty 2024（原作者）· iOS 17 移植与打包：DeepSeek (AI)　本分支：https://github.com/Pual397/17-MoreComplications</string>
  		</dict>
  		<dict>
  			<key>cellClass</key>
-@@ -86,7 +112,7 @@
+@@ -86,9 +112,21 @@
  			<key>twitter</key>
  			<string>Skittyblock</string>
  			<key>subtitle</key>
@@ -712,7 +723,21 @@
 +			<string>原作者</string>
  			<key>imageURL</key>
  			<string>https://github.com/skittyblock.png</string>
++		</dict>
++		<dict>
++			<key>cellClass</key>
++			<string>SPCreditCell</string>
++			<key>label</key>
++			<string>Pual397</string>
++			<key>twitter</key>
++			<string>Pual397</string>
++			<key>subtitle</key>
++			<string>本分支维护 · github.com/Pual397</string>
++			<key>imageURL</key>
++			<string>https://github.com/Pual397.png</string>
  		</dict>
+ 	</array>
+ 	<key>title</key>
 --- a/prefs/Resources/Info.plist
 +++ b/prefs/Resources/Info.plist
 @@ -13,11 +13,11 @@

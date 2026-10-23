@@ -102,7 +102,7 @@
 			<key>label</key>
 			<string>鸣谢</string>
 			<key>footerText</key>
-			<string>© Skitty 2024（原作者）</string>
+			<string>© Skitty 2024（原作者）· iOS 17 移植与打包：DeepSeek (AI)　本分支：https://github.com/Pual397/17-MoreComplications</string>
 		</dict>
 		<dict>
 			<key>cellClass</key>
@@ -124,7 +124,7 @@
 			<key>twitter</key>
 			<string>Pual397</string>
 			<key>subtitle</key>
-			<string>ios17移植</string>
+			<string>本分支维护 · github.com/Pual397</string>
 			<key>imageURL</key>
 			<string>https://github.com/Pual397.png</string>
 		</dict>
