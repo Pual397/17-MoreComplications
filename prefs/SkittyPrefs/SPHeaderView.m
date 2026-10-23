@@ -24,7 +24,11 @@
 
 		self.backgroundColor = settings[@"headerColor"] ?: settings[@"tintColor"];
 
-		self.contentView = [[UIView alloc] initWithFrame:CGRectMake(0, 75, self.bounds.size.width, 118)];
+		CGFloat headerHeight = [settings[@"headerHeight"] floatValue];
+		if (headerHeight <= 0) headerHeight = 192;
+		CGFloat contentHeight = MAX(74.0, headerHeight - 74.0);
+
+		self.contentView = [[UIView alloc] initWithFrame:CGRectMake(0, 75, self.bounds.size.width, contentHeight)];
 		[self addSubview:self.contentView];
 
 		self.titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(0, 20, self.bounds.size.width, 50)];
@@ -91,7 +95,8 @@
 }
 
 - (CGFloat)contentHeightForWidth:(CGFloat)width {
-	return 192;
+	CGFloat height = [self.settings[@"headerHeight"] floatValue];
+	return height > 0 ? height : 192;
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {

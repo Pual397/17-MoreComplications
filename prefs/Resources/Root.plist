@@ -4,8 +4,10 @@
 <dict>
 	<key>name</key>
 	<string>MoreComplications</string>
+	<key>headerHeight</key>
+	<real>148</real>
 	<key>titleFontSize</key>
-	<real>38</real>
+	<real>34</real>
 	<key>tintColor</key>
 	<string>#53b567</string>
 	<key>textColor</key>
