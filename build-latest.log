@@ -39,13 +39,6 @@ ld: warning: -multiply_defined is obsolete
 [1;31m> [1;3;39mMaking all for bundle MoreComplications…[m
 [0;35m==> [1;39mCopying resource directories into the bundle wrapper…[m
 [0;32m==> [1;39mCompiling MCSettingsController.m (arm64)…[m
-[1mMCSettingsController.m:59:33: [0m[0;1;35mwarning: [0m[1m'scrollIndicatorInsets' is deprecated: first deprecated in iOS 13.0 - The scrollIndicatorInsets getter is deprecated, use the verticalScrollIndicatorInsets and horizontalScrollIndicatorInsets getters instead. [-Wdeprecated-declarations][0m
-        UIEdgeInsets indicator = table.scrollIndicatorInsets;
-[0;1;32m                                       ^
-[0m[1m/Users/runner/work/17-MoreComplications/17-MoreComplications/theos/sdks/iPhoneOS16.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIScrollView.h:103:1: [0m[0;1;30mnote: [0m'scrollIndicatorInsets' has been explicitly marked deprecated here[0m
-- (UIEdgeInsets)scrollIndicatorInsets API_DEPRECATED("The scrollIndicatorInsets getter is deprecated, use the verticalScrollIndicatorInsets and horizontalScrollIndicatorInsets getters instead.", ios(2.0, 13.0), tvos(9.0, 13.0));
-[0;1;32m^
-[0m1 warning generated.
 [0;32m==> [1;39mCompiling MCTextFieldCell.m (arm64)…[m
 [0;32m==> [1;39mCompiling SkittyPrefs/SPCreditCell.m (arm64)…[m
 [0;32m==> [1;39mCompiling SkittyPrefs/SPHeaderView.m (arm64)…[m
@@ -90,13 +83,6 @@ ld: warning: -multiply_defined is obsolete
 [0;34m==> [1;39mGenerating debug symbols for MoreComplications…[m
 [0;34m==> [1;39mStripping MoreComplications (arm64)…[m
 [0;32m==> [1;39mCompiling MCSettingsController.m (arm64e)…[m
-[1mMCSettingsController.m:59:33: [0m[0;1;35mwarning: [0m[1m'scrollIndicatorInsets' is deprecated: first deprecated in iOS 13.0 - The scrollIndicatorInsets getter is deprecated, use the verticalScrollIndicatorInsets and horizontalScrollIndicatorInsets getters instead. [-Wdeprecated-declarations][0m
-        UIEdgeInsets indicator = table.scrollIndicatorInsets;
-[0;1;32m                                       ^
-[0m[1m/Users/runner/work/17-MoreComplications/17-MoreComplications/theos/sdks/iPhoneOS16.5.sdk/System/Library/Frameworks/UIKit.framework/Headers/UIScrollView.h:103:1: [0m[0;1;30mnote: [0m'scrollIndicatorInsets' has been explicitly marked deprecated here[0m
-- (UIEdgeInsets)scrollIndicatorInsets API_DEPRECATED("The scrollIndicatorInsets getter is deprecated, use the verticalScrollIndicatorInsets and horizontalScrollIndicatorInsets getters instead.", ios(2.0, 13.0), tvos(9.0, 13.0));
-[0;1;32m^
-[0m1 warning generated.
 [0;32m==> [1;39mCompiling MCTextFieldCell.m (arm64e)…[m
 [0;32m==> [1;39mCompiling SkittyPrefs/SPCreditCell.m (arm64e)…[m
 [0;32m==> [1;39mCompiling SkittyPrefs/SPHeaderView.m (arm64e)…[m
@@ -151,4 +137,4 @@ dm.pl: building package `xyz.skitty.morecomplications:iphoneos-arm64' in `./pack
 
 === packages ===
 total 96
--rw-r--r--  1 runner  staff  46496 Oct 23 20:01 xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb
+-rw-r--r--  1 runner  staff  46754 Oct 23 20:03 xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb
