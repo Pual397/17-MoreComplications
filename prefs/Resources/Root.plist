@@ -80,7 +80,7 @@
 			<key>label</key>
 			<string>布局</string>
 			<key>placeholder</key>
-			<string>2C 1J</string>
+			<string>例如 2C 1J（留空＝自动）</string>
 		</dict>
 		<dict>
 			<key>cell</key>
