@@ -1,0 +1,65 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        id: setup
+        run: |
+          brew install ldid make
+          echo "THEOS=${GITHUB_WORKSPACE}/theos" >> "${GITHUB_ENV}"
+          echo "PATH=/usr/local/opt/make/libexec/gnubin:${PATH}" >> "${GITHUB_ENV}"
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: theos
+          submodules: recursive
+
+      - name: Download iOS SDK
+        uses: actions/checkout@v4
+        with:
+          repository: theos/sdks
+          path: theos/sdks
+          sparse-checkout: iPhoneOS16.5.sdk
+
+      # Apple's clang (Xcode on the runner) is what produces a real arm64e
+      # (ABI v1) slice; the ARM64/ARM64E ARCHS come from the root Makefile.
+      - name: Build rootless package
+        run: |
+          export PACKAGE_BUILDNAME=${{ steps.setup.outputs.sha_short }}
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Verify slices
+        run: |
+          DEB=$(ls packages/*.deb | head -1)
+          echo "built: $DEB"
+          dpkg-deb -x "$DEB" /tmp/out
+          for f in /tmp/out/var/jb/Library/MobileSubstrate/DynamicLibraries/*.dylib \
+                   /tmp/out/var/jb/Library/PreferenceBundles/*.bundle/*; do
+            [ -f "$f" ] || continue
+            file "$f" | grep -q Mach-O || continue
+            echo "--- $f"
+            lipo -info "$f"
+            otool -hv "$f" | sed -n '2p'
+          done
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoreComplications_${{ steps.setup.outputs.sha_short }}
+          path: packages/*.deb
+          if-no-files-found: error
