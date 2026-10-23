@@ -74,13 +74,15 @@
 		</dict>
 		<dict>
 			<key>cell</key>
-			<string>PSChildPaneSpecifier</string>
+			<string>PSLinkCell</string>
 			<key>label</key>
 			<string>高级选项</string>
-			<key>title</key>
-			<string>高级选项</string>
-			<key>File</key>
-			<string>Advanced</string>
+			<key>detail</key>
+			<string>MCAdvancedController</string>
+			<key>isController</key>
+			<true/>
+			<key>bundle</key>
+			<string>MoreComplications</string>
 		</dict>
 		<dict>
 			<key>cell</key>
