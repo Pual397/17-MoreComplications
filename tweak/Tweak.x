@@ -100,9 +100,9 @@ static int MCEffectiveRows(void) {
 	return count;
 }
 
-// 一行一个 token，形如 "2C 1J"：数量 + 对齐（C 居中 / J 两端 / L 左 / R 右）。
-// 解析后拆成 rowBreaks（每行最多几个）和 rowAligns（每行对齐方式）两份数据，
-// 后面的分行、对齐逻辑只认这两份数据。
+// One token per row, e.g. "2C 1J": count + alignment (C center, J justify,
+// L left, R right). Parsing splits it into rowBreaks (max elements per row) and
+// rowAligns (alignment per row); the packing code below only reads those.
 static void MCParseRowLayout(NSString *string) {
 	rowBreaks = nil;
 	rowAligns = nil;
@@ -171,7 +171,7 @@ static void MCAppendAutoRows(NSMutableArray<NSMutableArray *> *groups, NSArray *
 	}
 }
 
-// Rows listed in "每行数量" take exactly that many elements, in the order the OS
+// Rows listed in the layout string take exactly that many elements, in the order the OS
 // hands them over; whatever is left keeps packing automatically.
 static NSArray<NSArray *> *MCGroupElementsConfigured(NSArray *elements, int rowCount) {
 	NSMutableArray<NSMutableArray *> *groups = [NSMutableArray array];
@@ -271,15 +271,16 @@ static NSDictionary *MCExpandedFrames(NSArray *elements,
 	NSMutableDictionary *merged = [NSMutableDictionary dictionary];
 	double spacing = MCSpacing();
 
+	// Looked up by name once: the tweak does not link CoverSheetKit, so a direct
+	// reference to CSComplicationLayout would be an undefined symbol.
+	Class layoutClass = objc_getClass("CSComplicationLayout");
+
 	for (NSUInteger i = 0; i < groups.count; i++) {
 		NSArray *group = groups[i];
 		if (group.count == 0) continue;
 
 		id result = call(group, rowSize);
 		NSDictionary *frames = nil;
-		// Look the class up by name: the tweak does not link CoverSheetKit, so a
-		// direct reference to CSComplicationLayout would be an undefined symbol.
-		Class layoutClass = objc_getClass("CSComplicationLayout");
 		if (layoutClass && [result isKindOfClass:layoutClass]) {
 			frames = [(CSComplicationLayout *)result framesByElement];
 		} else if ([result isKindOfClass:[NSDictionary class]]) {

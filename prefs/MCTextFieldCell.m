@@ -45,6 +45,7 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 @implementation MCTextFieldCell {
 	UITextField *_textField;
 	UITapGestureRecognizer *_dismissTap;
+	BOOL _observingKeyboard;
 }
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
@@ -78,10 +79,9 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 		NSString *placeholder = [specifier propertyForKey:@"placeholder"];
 		_textField.placeholder = placeholder.length ? placeholder : @"2C 1J";
 		_textField.text = MCReadPreference(specifier);
-		_textField.accessibilityLabel = [specifier propertyForKey:@"label"] ?: @"布局";
+		_textField.accessibilityLabel = [specifier propertyForKey:@"label"] ?: @"Layout";
 
-		// A visible Done button above the keyboard, so the keyboard can always be
-		// dismissed even if the return key is not handled by the host app.
+		// Visible Done button above the keyboard, independent of the return key.
 		UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, 320, 44)];
 		UIBarButtonItem *flexible = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
 		                                                                          target:nil
@@ -120,26 +120,93 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 	if (_dismissTap || self.window == nil) return;
 
 	// Tapping anywhere else also drops the keyboard.
-	UIView *view = self.superview;
-	while (view && ![view isKindOfClass:[UITableView class]]) {
-		view = view.superview;
-	}
-	if (view) {
+	UITableView *table = [self enclosingTableView];
+	if (table) {
 		_dismissTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissKeyboard)];
 		_dismissTap.cancelsTouchesInView = NO;
-		[view addGestureRecognizer:_dismissTap];
+		[table addGestureRecognizer:_dismissTap];
 	}
 }
 
+#pragma mark - Value handling
+
+// The preference is written once typing pauses, so a CFPreferences sync and a
+// Darwin notification are not fired for every keystroke.
 - (void)textDidChange:(UITextField *)textField {
-	MCWritePreference([self specifier], textField.text ?: @"");
+	[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(commitValue) object:nil];
+	[self performSelector:@selector(commitValue) withObject:nil afterDelay:0.4];
+}
+
+- (void)commitValue {
+	MCWritePreference([self specifier], _textField.text ?: @"");
 }
 
 - (void)dismissKeyboard {
 	[_textField resignFirstResponder];
 }
 
+#pragma mark - Keeping the field visible
+
+- (UITableView *)enclosingTableView {
+	UIView *view = self.superview;
+	while (view && ![view isKindOfClass:[UITableView class]]) {
+		view = view.superview;
+	}
+	return (UITableView *)view;
+}
+
+- (CGFloat)keyboardHeightFromNotification:(NSNotification *)note {
+	CGRect frame = [note.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+	CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+	return MAX(0.0, screenHeight - CGRectGetMinY(frame));
+}
+
+// Only the scroll offset is touched: SPSettingsController rewrites contentInset
+// on every scroll, so changing the inset here would be fought over.
+- (void)scrollIntoViewWithKeyboardHeight:(CGFloat)keyboardHeight {
+	UITableView *table = [self enclosingTableView];
+	if (!table) return;
+
+	CGRect cellRect = [self convertRect:self.bounds toView:table];
+	CGFloat visibleBottom = table.contentOffset.y + CGRectGetHeight(table.bounds) - keyboardHeight - 8.0;
+	if (CGRectGetMaxY(cellRect) <= visibleBottom) return;
+
+	CGFloat delta = CGRectGetMaxY(cellRect) - visibleBottom;
+	CGFloat maxOffset = MAX(0.0, table.contentSize.height - CGRectGetHeight(table.bounds) + table.contentInset.bottom);
+	CGFloat target = MIN(table.contentOffset.y + delta, maxOffset);
+	[table setContentOffset:CGPointMake(table.contentOffset.x, target) animated:YES];
+}
+
+- (void)keyboardWillChangeFrame:(NSNotification *)note {
+	if (!_textField.isFirstResponder) return;
+	[self scrollIntoViewWithKeyboardHeight:[self keyboardHeightFromNotification:note]];
+}
+
 #pragma mark - UITextFieldDelegate
+
+- (void)textFieldDidBeginEditing:(UITextField *)textField {
+	if (!_observingKeyboard) {
+		[[NSNotificationCenter defaultCenter] addObserver:self
+		                                         selector:@selector(keyboardWillChangeFrame:)
+		                                             name:UIKeyboardWillChangeFrameNotification
+		                                           object:nil];
+		_observingKeyboard = YES;
+	}
+	[self scrollIntoViewWithKeyboardHeight:0.0];
+}
+
+- (void)textFieldDidEndEditing:(UITextField *)textField {
+	if (_observingKeyboard) {
+		[[NSNotificationCenter defaultCenter] removeObserver:self
+		                                                name:UIKeyboardWillChangeFrameNotification
+		                                              object:nil];
+		_observingKeyboard = NO;
+	}
+
+	// Flush whatever the debounce still has pending.
+	[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(commitValue) object:nil];
+	[self commitValue];
+}
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField {
 	[textField resignFirstResponder];
@@ -147,6 +214,10 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 }
 
 - (void)dealloc {
+	[NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(commitValue) object:nil];
+	if (_observingKeyboard) {
+		[[NSNotificationCenter defaultCenter] removeObserver:self];
+	}
 	[_textField removeTarget:self action:@selector(textDidChange:) forControlEvents:UIControlEventEditingChanged];
 	if (_dismissTap) {
 		[_dismissTap.view removeGestureRecognizer:_dismissTap];
