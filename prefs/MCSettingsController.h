@@ -1,4 +1,4 @@
-#import "SkittyPrefs/SPSettingsController.h"
+#import <Preferences/PSTableCell.h>
 
-@interface MCSettingsController : SPSettingsController
+@interface MCTextFieldCell : PSTableCell
 @end
