@@ -5,24 +5,28 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: macos-14
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up dependencies
         run: |
           brew install ldid make
           echo "THEOS=${GITHUB_WORKSPACE}/theos" >> "${GITHUB_ENV}"
           echo "PATH=/usr/local/opt/make/libexec/gnubin:${PATH}" >> "${GITHUB_ENV}"
       - name: Install Theos
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: theos/theos
           path: theos
           submodules: recursive
       - name: Download iOS SDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: theos/sdks
           path: theos/sdks
@@ -71,7 +75,7 @@ jobs:
           done
       - name: Upload deb
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: MoreComplications
           path: packages/*.deb
