@@ -18,7 +18,7 @@
 			<key>label</key>
 			<string>总开关</string>
 			<key>footerText</key>
-			<string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
+			<string>关闭后完全恢复系统原本的单行锁屏小组件行为。</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -66,7 +66,7 @@
 			<key>label</key>
 			<string>布局功能</string>
 			<key>footerText</key>
-			<string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
+<string>格式：每行组件使用一个组合「数量 + 对齐」，空格分隔。&#10;C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。留空 = 系统自动分行并居中。&#10;例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。&#10;组件顺序 = 编辑界面里的顺序。</string>
 		</dict>
 		<dict>
 			<key>cellClass</key>
@@ -102,7 +102,7 @@
 			<key>label</key>
 			<string>鸣谢</string>
 			<key>footerText</key>
-			<string>© Skitty 2024（原作者）· iOS 17 移植与打包：DeepSeek (AI)　本分支：https://github.com/Pual397/17-MoreComplications</string>
+			<string>© Skitty 2024（原作者）</string>
 		</dict>
 		<dict>
 			<key>cellClass</key>
@@ -115,18 +115,6 @@
 			<string>原作者</string>
 			<key>imageURL</key>
 			<string>https://github.com/skittyblock.png</string>
-		</dict>
-		<dict>
-			<key>cellClass</key>
-			<string>SPCreditCell</string>
-			<key>label</key>
-			<string>Pual397</string>
-			<key>twitter</key>
-			<string>Pual397</string>
-			<key>subtitle</key>
-			<string>本分支维护 · github.com/Pual397</string>
-			<key>imageURL</key>
-			<string>https://github.com/Pual397.png</string>
 		</dict>
 	</array>
 	<key>title</key>
