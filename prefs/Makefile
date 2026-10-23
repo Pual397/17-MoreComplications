@@ -1,7 +1,7 @@
 # iOS 16+ only (matches the package Depends). The old 12.0 target made
 # @available() emit __isPlatformVersionAtLeast calls that the rootless link
 # cannot resolve.
-TARGET = iphone:clang:latest:16.0
+TARGET = iphone:clang:16.5:16.0
 
 BUNDLE_NAME = MoreComplications
 MoreComplications_FILES = $(wildcard *.m) $(wildcard SkittyPrefs/*.m)
