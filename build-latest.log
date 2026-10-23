@@ -39,65 +39,10 @@ ld: warning: -multiply_defined is obsolete
 [1;31m> [1;3;39mMaking all for bundle MoreComplications…[m
 [0;35m==> [1;39mCopying resource directories into the bundle wrapper…[m
 [0;32m==> [1;39mCompiling MCSettingsController.m (arm64)…[m
-[1mMCSettingsController.m:1:2: [0m[0;1;31merror: [0m[1mexpected identifier[0m
-<?xml version="1.0" encoding="UTF-8"?>
-[0;1;32m ^
-[0m[1mMCSettingsController.m:21:75: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF0C> as identifier character rather than as ',' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
-[0;1;32m                                                                          ^~
-[0m[1mMCSettingsController.m:21:96: [0m[0;1;31merror: [0m[1mcharacter <U+3002> not allowed in an identifier[0m
-                        <string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
-[0;1;32m                                                                                        ^~
-[0m[1mMCSettingsController.m:43:51: [0m[0;1;31merror: [0m[1mcharacter <U+3002> not allowed in an identifier[0m
-                        <string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
-[0;1;32m                                                          ^~
-[0m[1mMCSettingsController.m:43:93: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF0C> as identifier character rather than as ',' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
-[0;1;32m                                                                                      ^~
-[0m[1mMCSettingsController.m:43:117: [0m[0;1;31merror: [0m[1mcharacter <U+3002> not allowed in an identifier[0m
-                        <string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
-[0;1;32m                                                                                                      ^~
-[0m[1mMCSettingsController.m:61:18: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF1A> as identifier character rather than as ':' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>行数：%i</string>
-[0;1;32m                                    ^~
-[0m[1mMCSettingsController.m:69:18: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF1A> as identifier character rather than as ':' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                    ^~
-[0m[1mMCSettingsController.m:69:39: [0m[0;1;31merror: [0m[1mcharacter <U+300C> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                  ^~
-[0m[1mMCSettingsController.m:69:57: [0m[0;1;31merror: [0m[1mcharacter <U+300D> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                               ^~
-[0m[1mMCSettingsController.m:69:60: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF0C> as identifier character rather than as ',' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                 ^~
-[0m[1mMCSettingsController.m:69:75: [0m[0;1;31merror: [0m[1mcharacter <U+3002> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                           ^~
-[0m[1mMCSettingsController.m:69:86: [0m[0;1;31merror: [0m[1mcharacter <U+3001> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                   ^~
-[0m[1mMCSettingsController.m:69:103: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF08> as identifier character rather than as '(' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                               ^~
-[0m[1mMCSettingsController.m:69:136: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF09> as identifier character rather than as ')' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                                                      ^~
-[0m[1mMCSettingsController.m:69:139: [0m[0;1;31merror: [0m[1mcharacter <U+3001> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                                                        ^~
-[0m[1mMCSettingsController.m:69:150: [0m[0;1;31merror: [0m[1mcharacter <U+3001> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                                                                ^~
-[0m[1mMCSettingsController.m:69:161: [0m[0;1;31merror: [0m[1mcharacter <U+3002> not allowed in an identifier[0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                                                                        ^~
-[0m[1mMCSettingsController.m:69:167: [0m[0;1;31merror: [0m[1mtreating Unicode character <U+FF1A> as identifier character rather than as ':' symbol [-Werror,-Wunicode-homoglyph][0m
-                        <string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
-[0;1;32m                                                                                                                                            ^~
-[0m[0;1;31mfatal error: [0m[1mtoo many errors emitted, stopping now [-ferror-limit=][0m
-20 errors generated.
+[1mMCSettingsController.m:1:9: [0m[0;1;31mfatal error: [0m[1m'MCTextFieldCell.h' file not found[0m
+#import "MCTextFieldCell.h"
+[0;1;32m        ^~~~~~~~~~~~~~~~~~~
+[0m1 error generated.
 make[4]: *** [/Users/runner/work/17-MoreComplications/17-MoreComplications/.theos/obj/arm64/MCSettingsController.m.2a4b5126.o] Error 1
 make[3]: *** [/Users/runner/work/17-MoreComplications/17-MoreComplications/.theos/obj/arm64/MoreComplications.bundle/MoreComplications] Error 2
 make[2]: *** [internal-bundle-all_] Error 2
