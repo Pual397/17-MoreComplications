@@ -130,9 +130,9 @@ ld: warning: -multiply_defined is obsolete
 [1;31m> [1;3;39mMaking stage for tweak MoreComplications…[m
 [1;31m> [1;3;39mMaking stage in prefs…[m
 [1;31m> [1;3;39mMaking stage for bundle MoreComplications…[m
-dm.pl: building package `xyz.skitty.morecomplications:iphoneos-arm64' in `./packages/xyz.skitty.morecomplications_1.3_iphoneos-arm64.deb'
+dm.pl: building package `xyz.skitty.morecomplications:iphoneos-arm64' in `./packages/xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb'
 === make exit: 0 ===
 
 === packages ===
-total 80
--rw-r--r--  1 runner  staff  39514 Oct 23 04:33 xyz.skitty.morecomplications_1.3_iphoneos-arm64.deb
+total 88
+-rw-r--r--  1 runner  staff  42446 Oct 23 05:51 xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb
