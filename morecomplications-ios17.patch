@@ -1,6 +1,6 @@
 --- a/tweak/Tweak.x
 +++ b/tweak/Tweak.x
-@@ -1,81 +1,289 @@
+@@ -1,81 +1,431 @@
  #import <Foundation/Foundation.h>
  #import <rootless.h>
 +#import <objc/runtime.h>
@@ -14,12 +14,19 @@
  static BOOL enabled = YES;
  static int rows = 2;
  
--%hook CSGraphicComplicationLayoutProvider
--
--// allow adding more elements to the complication
--+ (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements {
--	if (!enabled) return %orig;
--	long long totalWidth = 0;
++// Per-row layout, parsed from e.g. "2C 1J" (row 1: two elements centered,
++// row 2: one element justified between both edges). L/R apply to single
++// elements that should hug one edge.
++typedef NS_ENUM(int, MCAlignment) {
++	MCAlignmentCenter = 0,
++	MCAlignmentJustify,
++	MCAlignmentLeft,
++	MCAlignmentRight,
++};
++
++static NSArray<NSNumber *> *rowBreaks = nil;  // 每行最多几个组件，例如 [2, 1]
++static NSArray<NSNumber *> *rowAligns = nil;  // 每行对齐方式，例如 [J, C]
++
 +#pragma mark - logging
 +
 +// Hooks that landed are logged once, so "install the tweak and check Console"
@@ -63,72 +70,6 @@
 +	return size;
 +}
 +
-+// Greedy packing: every element goes into the first row that still has room.
-+static NSArray<NSArray *> *MCGroupElements(NSArray *elements, int rowCount) {
-+	NSMutableArray<NSMutableArray *> *groups = [NSMutableArray arrayWithCapacity:rowCount];
-+	NSMutableArray<NSNumber *> *widths = [NSMutableArray arrayWithCapacity:rowCount];
-+	for (int i = 0; i < rowCount; i++) {
-+		[groups addObject:[NSMutableArray array]];
-+		[widths addObject:@0];
-+	}
-+
- 	for (CSComplicationLayoutElement *element in elements) {
--		totalWidth += element.gridWidth;
--	}
--	return totalWidth + element.gridWidth <= rows * ELEMENTS_PER_ROW;
--}
--
--// change the height of the complication container to fit more rows
--+ (double)complicationContainerHeight {
--	double complicationContainerHeight = %orig;
--	if (!enabled) return complicationContainerHeight;
--	double spacing = [%c(CSGraphicComplicationLayoutProvider) complicationEdgeInset];
--	return complicationContainerHeight * rows + spacing * (rows - 1);
--}
--
--// handle the positions of the complications
--+ (NSDictionary<CSComplicationLayoutElement *, NSValue *> *)_framesForLayoutElements:(NSArray<CSComplicationLayoutElement *> *)elements containerSize:(CGSize)containerSize {
--	if (!enabled) return %orig;
--
--	NSMutableArray *groups = [NSMutableArray new];
--	NSMutableArray *groupWidths = [NSMutableArray new];
--	for (int i = 0; i < rows; ++i) {
--		[groups addObject:[NSMutableArray new]];
--		[groupWidths addObject:@0];
--	}
--
--	// put each element in the first group that can fit it
--	for (CSComplicationLayoutElement *element in elements) {
--		for (int i = 0; i < [groupWidths count]; i++) {
--			if ([groupWidths[i] intValue] + element.gridWidth <= ELEMENTS_PER_ROW) {
--				groupWidths[i] = @([groupWidths[i] intValue] + element.gridWidth);
-+		// An element without gridWidth is treated as a full row of its own.
-+		long long width = [element respondsToSelector:@selector(gridWidth)] ? [element gridWidth] : ELEMENTS_PER_ROW;
-+		for (int i = 0; i < rowCount; i++) {
-+			long long used = [widths[i] longLongValue];
-+			if (used + width <= ELEMENTS_PER_ROW) {
-+				widths[i] = @(used + width);
- 				[groups[i] addObject:element];
- 				break;
- 			}
- 		}
- 	}
--
--	// get the original container size so we can reuse the original function
--	double spacing = [%c(CSGraphicComplicationLayoutProvider) complicationEdgeInset];
--	CGSize smallContainerSize = containerSize;
--	smallContainerSize.height -= spacing * (rows - 1);
--	smallContainerSize.height /= rows;
--
--	NSMutableDictionary<CSComplicationLayoutElement *, NSValue *> *newFrames = [NSMutableDictionary dictionary];
--
--	for (int i = 0; i < [groups count]; i++) {
--		NSArray<CSComplicationLayoutElement *> *group = groups[i];
--		if ([group count] == 0) {
--			break;
-+	return groups;
-+}
-+
 +// True when every frame sits on the same baseline, which is exactly the
 +// situation this tweak replaces with several rows. Anything already laid out
 +// over several rows (or a sidebar column) is left untouched, which also makes
@@ -147,23 +88,170 @@
 +			first = NO;
 +		} else if (fabs(frame.origin.y - baseY) > MC_EPSILON) {
 +			return NO;
- 		}
--		NSDictionary<CSComplicationLayoutElement *, NSValue *> *frames = %orig(group, smallContainerSize);
--		for (CSComplicationLayoutElement *element in frames) {
--			NSRect frame = [frames[element] CGRectValue];
--			frame.origin.y += i * (smallContainerSize.height + spacing);
--			newFrames[element] = [NSValue valueWithCGRect:frame];
++		}
 +	}
 +	return YES;
 +}
 +
-+static void MCMergeFrames(NSMutableDictionary *merged, NSDictionary *frames, CGFloat yOffset) {
-+	if (![frames isKindOfClass:[NSDictionary class]]) return;
++// MARK: - row layout
 +
-+	for (id key in frames) {
-+		id value = frames[key];
-+		if (![value isKindOfClass:[NSValue class]]) continue;
-+		CGRect frame = [(NSValue *)value CGRectValue];
++static int MCEffectiveRows(void) {
++	int count = rows;
++	if ((int)rowBreaks.count > count) count = (int)rowBreaks.count;
++	if ((int)rowAligns.count > count) count = (int)rowAligns.count;
++	if (count < 1) count = 1;
++	return count;
++}
++
++// 一行一个 token，形如 "2C 1J"：数量 + 对齐（C 居中 / J 两端 / L 左 / R 右）。
++// 解析后拆成 rowBreaks（每行最多几个）和 rowAligns（每行对齐方式）两份数据，
++// 后面的分行、对齐逻辑只认这两份数据。
++static void MCParseRowLayout(NSString *string) {
++	rowBreaks = nil;
++	rowAligns = nil;
++	if (![string isKindOfClass:[NSString class]] || string.length == 0) return;
++
++	NSMutableArray<NSNumber *> *counts = [NSMutableArray array];
++	NSMutableArray<NSNumber *> *aligns = [NSMutableArray array];
++	NSArray *tokens = [string componentsSeparatedByCharactersInSet:
++	                   [NSCharacterSet characterSetWithCharactersInString:@" ,;\t\n"]];
++
++	for (NSString *token in tokens) {
++		NSString *trimmed = [[token stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] uppercaseString];
++		if (trimmed.length == 0) continue;
++
++		NSUInteger digits = 0;
++		while (digits < trimmed.length && isdigit((int)[trimmed characterAtIndex:digits])) digits++;
++
++		int count = 1;
++		if (digits > 0) {
++			count = [[trimmed substringToIndex:digits] intValue];
++			if (count <= 0) count = 1;
++		}
++
++		MCAlignment align = MCAlignmentCenter;
++		if (digits < trimmed.length) {
++			unichar letter = [trimmed characterAtIndex:digits];
++			if (letter == 'J') align = MCAlignmentJustify;
++			else if (letter == 'L') align = MCAlignmentLeft;
++			else if (letter == 'R') align = MCAlignmentRight;
++		}
++
++		[counts addObject:@(count)];
++		[aligns addObject:@(align)];
++		if (counts.count >= 8) break;  // sanity cap
++	}
++
++	rowBreaks = counts.count ? counts : nil;
++	rowAligns = aligns.count ? aligns : nil;
++}
++
++static MCAlignment MCAlignmentForRow(NSUInteger index) {
++	if (index < rowAligns.count) return (MCAlignment)[rowAligns[index] intValue];
++	return MCAlignmentCenter;
++}
++
++// Packs elements by the system's own capacity (4 grid units per row), adding
++// rows until `maxRows` is reached. Anything that still does not fit is left
++// unplaced; MCExpandedFrames keeps its original frame in that case.
++static void MCAppendAutoRows(NSMutableArray<NSMutableArray *> *groups, NSArray *elements, NSUInteger maxRows) {
++	if (elements.count == 0 || groups.count >= maxRows) return;
++
++	[groups addObject:[NSMutableArray array]];
++	NSUInteger row = groups.count - 1;
++	long long used = 0;
++
++	for (id element in elements) {
++		long long width = [element respondsToSelector:@selector(gridWidth)] ? [element gridWidth] : ELEMENTS_PER_ROW;
++		if (used + width > ELEMENTS_PER_ROW) {
++			if (groups.count >= maxRows) break;
++			[groups addObject:[NSMutableArray array]];
++			row = groups.count - 1;
++			used = 0;
++		}
++		[groups[row] addObject:element];
++		used += width;
++	}
++}
++
++// Rows listed in "每行数量" take exactly that many elements, in the order the OS
++// hands them over; whatever is left keeps packing automatically.
++static NSArray<NSArray *> *MCGroupElementsConfigured(NSArray *elements, int rowCount) {
++	NSMutableArray<NSMutableArray *> *groups = [NSMutableArray array];
++	NSUInteger maxRows = (NSUInteger)MAX(rowCount, 1);
++
++	if (rowBreaks.count == 0) {
++		MCAppendAutoRows(groups, elements, maxRows);
++		return groups;
++	}
++
++	NSUInteger index = 0;
++	for (NSUInteger row = 0; row < rowBreaks.count && row < maxRows && index < elements.count; row++) {
++		[groups addObject:[NSMutableArray array]];
++		NSUInteger take = (NSUInteger)[rowBreaks[row] intValue];
++		for (NSUInteger k = 0; k < take && index < elements.count; k++, index++) {
++			[groups[row] addObject:elements[index]];
++		}
++	}
++
++	if (index < elements.count) {
++		MCAppendAutoRows(groups, [elements subarrayWithRange:NSMakeRange(index, elements.count - index)], maxRows);
++	}
++	return groups;
++}
++
++// Places one row's frames: y offset for the row, x per alignment.
++// C keeps the OS' own centered spacing, L/R shift the whole row to an edge,
++// J spreads the free space so the first element hugs the left edge and the
++// last one hugs the right edge.
++static void MCMergeRowAligned(NSMutableDictionary *merged,
++                              NSDictionary *rowFrames,
++                              CGFloat yOffset,
++                              CGFloat containerWidth,
++                              MCAlignment alignment) {
++	if (![rowFrames isKindOfClass:[NSDictionary class]] || rowFrames.count == 0) return;
++
++	NSArray *keys = [[rowFrames allKeys] sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
++		CGFloat xa = [(NSValue *)rowFrames[a] CGRectValue].origin.x;
++		CGFloat xb = [(NSValue *)rowFrames[b] CGRectValue].origin.x;
++		if (xa < xb) return NSOrderedAscending;
++		if (xa > xb) return NSOrderedDescending;
++		return NSOrderedSame;
++	}];
++
++	CGFloat total = 0;
++	CGFloat minX = CGFLOAT_MAX;
++	CGFloat maxX = -CGFLOAT_MAX;
++	for (id key in keys) {
++		CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
++		total += frame.size.width;
++		minX = MIN(minX, frame.origin.x);
++		maxX = MAX(maxX, CGRectGetMaxX(frame));
++	}
++	NSUInteger count = keys.count;
++
++	if (alignment == MCAlignmentJustify && count < 2) alignment = MCAlignmentCenter;
++
++	if (alignment == MCAlignmentJustify && total <= containerWidth) {
++		CGFloat gap = (containerWidth - total) / (CGFloat)(count - 1);
++		CGFloat cursor = 0;
++		for (id key in keys) {
++			CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
++			frame.origin.x = cursor;
++			frame.origin.y += yOffset;
++			merged[key] = [NSValue valueWithCGRect:frame];
++			cursor += frame.size.width + gap;
++		}
++		return;
++	}
++
++	CGFloat dx = 0;
++	if (alignment == MCAlignmentLeft) dx = -minX;
++	else if (alignment == MCAlignmentRight) dx = containerWidth - maxX;
++
++	for (id key in keys) {
++		CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
++		frame.origin.x += dx;
 +		frame.origin.y += yOffset;
 +		merged[key] = [NSValue valueWithCGRect:frame];
 +	}
@@ -175,13 +263,14 @@
 +                                      CGSize containerSize,
 +                                      NSDictionary *originalFrames,
 +                                      id (^call)(NSArray *subset, CGSize size)) {
-+	if (!enabled || rows <= 1) return nil;
++	int rowCount = MCEffectiveRows();
++	if (!enabled || rowCount <= 1) return nil;
 +	if (!MCFramesAreSingleRow(originalFrames)) return nil;
 +
-+	CGSize rowSize = MCRowContainerSize(containerSize, rows);
++	CGSize rowSize = MCRowContainerSize(containerSize, rowCount);
 +	if (rowSize.height <= 0 || rowSize.width <= 0) return nil;
 +
-+	NSArray<NSArray *> *groups = MCGroupElements(elements, rows);
++	NSArray<NSArray *> *groups = MCGroupElementsConfigured(elements, rowCount);
 +	NSMutableDictionary *merged = [NSMutableDictionary dictionary];
 +	double spacing = MCSpacing();
 +
@@ -198,11 +287,8 @@
 +			frames = [(CSComplicationLayout *)result framesByElement];
 +		} else if ([result isKindOfClass:[NSDictionary class]]) {
 +			frames = result;
- 		}
--	}
--
--	return newFrames;
-+		MCMergeFrames(merged, frames, i * (rowSize.height + spacing));
++		}
++		MCMergeRowAligned(merged, frames, i * (rowSize.height + spacing), containerSize.width, MCAlignmentForRow(i));
 +	}
 +
 +	if (merged.count == 0) return nil;
@@ -225,20 +311,28 @@
 +
 +#pragma mark - hooks
 +
-+%hook CSGraphicComplicationLayoutProvider
-+
+ %hook CSGraphicComplicationLayoutProvider
+ 
+-// allow adding more elements to the complication
 +// iOS 16: raise the element limit.
-++ (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements {
-+	if (!enabled || rows <= 1 || !element) return %orig;
+ + (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements {
+-	if (!enabled) return %orig;
++	if (!enabled || MCEffectiveRows() <= 1 || !element) return %orig;
 +
-+	long long totalWidth = 0;
+ 	long long totalWidth = 0;
+-	for (CSComplicationLayoutElement *element in elements) {
+-		totalWidth += element.gridWidth;
+-	}
+-	return totalWidth + element.gridWidth <= rows * ELEMENTS_PER_ROW;
+-}
+-
+-// change the height of the complication container to fit more rows
 +	for (CSComplicationLayoutElement *existing in elements) {
 +		if (![existing respondsToSelector:@selector(gridWidth)]) return %orig;
 +		totalWidth += [existing gridWidth];
-+	}
-+	if (![element respondsToSelector:@selector(gridWidth)]) return %orig;
++	}	if (![element respondsToSelector:@selector(gridWidth)]) return %orig;
 +
-+	if (totalWidth + [element gridWidth] <= (long long)rows * ELEMENTS_PER_ROW) {
++	if (totalWidth + [element gridWidth] <= (long long)MCEffectiveRows() * ELEMENTS_PER_ROW) {
 +		MCLogOnce(@"canAddElement:toElements: hooked");
 +		return true;
 +	}
@@ -248,14 +342,14 @@
 +// iOS 17: the same limit, now aware of the layout style.
 +// Only ever widen the limit here, never tighten what the OS allows.
 ++ (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements layoutStyle:(long long)layoutStyle {
-+	if (!enabled || rows <= 1 || !element) return %orig;
++	if (!enabled || MCEffectiveRows() <= 1 || !element) return %orig;
 +
 +	long long totalWidth = 0;
 +	for (CSComplicationLayoutElement *existing in elements) {
 +		totalWidth += [existing gridWidth];
 +	}
 +
-+	if (totalWidth + [element gridWidth] <= (long long)rows * ELEMENTS_PER_ROW) {
++	if (totalWidth + [element gridWidth] <= (long long)MCEffectiveRows() * ELEMENTS_PER_ROW) {
 +		MCLogOnce(@"canAddElement:toElements:layoutStyle: hooked");
 +		return true;
 +	}
@@ -263,16 +357,66 @@
 +}
 +
 +// Grow the complication container so the extra rows have room.
-++ (double)complicationContainerHeight {
+ + (double)complicationContainerHeight {
+-	double complicationContainerHeight = %orig;
+-	if (!enabled) return complicationContainerHeight;
+-	double spacing = [%c(CSGraphicComplicationLayoutProvider) complicationEdgeInset];
+-	return complicationContainerHeight * rows + spacing * (rows - 1);
+-}
+-
+-// handle the positions of the complications
 +	double height = %orig;
-+	if (!enabled || rows <= 1 || height <= 0) return height;
++	int rowCount = MCEffectiveRows();
++	if (!enabled || rowCount <= 1 || height <= 0) return height;
 +
 +	double spacing = MCSpacing();
-+	return height * rows + spacing * (rows - 1);
++	return height * rowCount + spacing * (rowCount - 1);
 +}
 +
 +// iOS 16 layout: a plain element -> NSValue(CGRect) dictionary.
-++ (NSDictionary<CSComplicationLayoutElement *, NSValue *> *)_framesForLayoutElements:(NSArray<CSComplicationLayoutElement *> *)elements containerSize:(CGSize)containerSize {
+ + (NSDictionary<CSComplicationLayoutElement *, NSValue *> *)_framesForLayoutElements:(NSArray<CSComplicationLayoutElement *> *)elements containerSize:(CGSize)containerSize {
+-	if (!enabled) return %orig;
+-
+-	NSMutableArray *groups = [NSMutableArray new];
+-	NSMutableArray *groupWidths = [NSMutableArray new];
+-	for (int i = 0; i < rows; ++i) {
+-		[groups addObject:[NSMutableArray new]];
+-		[groupWidths addObject:@0];
+-	}
+-
+-	// put each element in the first group that can fit it
+-	for (CSComplicationLayoutElement *element in elements) {
+-		for (int i = 0; i < [groupWidths count]; i++) {
+-			if ([groupWidths[i] intValue] + element.gridWidth <= ELEMENTS_PER_ROW) {
+-				groupWidths[i] = @([groupWidths[i] intValue] + element.gridWidth);
+-				[groups[i] addObject:element];
+-				break;
+-			}
+-		}
+-	}
+-
+-	// get the original container size so we can reuse the original function
+-	double spacing = [%c(CSGraphicComplicationLayoutProvider) complicationEdgeInset];
+-	CGSize smallContainerSize = containerSize;
+-	smallContainerSize.height -= spacing * (rows - 1);
+-	smallContainerSize.height /= rows;
+-
+-	NSMutableDictionary<CSComplicationLayoutElement *, NSValue *> *newFrames = [NSMutableDictionary dictionary];
+-
+-	for (int i = 0; i < [groups count]; i++) {
+-		NSArray<CSComplicationLayoutElement *> *group = groups[i];
+-		if ([group count] == 0) {
+-			break;
+-		}
+-		NSDictionary<CSComplicationLayoutElement *, NSValue *> *frames = %orig(group, smallContainerSize);
+-		for (CSComplicationLayoutElement *element in frames) {
+-			NSRect frame = [frames[element] CGRectValue];
+-			frame.origin.y += i * (smallContainerSize.height + spacing);
+-			newFrames[element] = [NSValue valueWithCGRect:frame];
+-		}
+-	}
+-
+-	return newFrames;
 +	NSDictionary *original = %orig;
 +
 +	NSDictionary *expanded = MCExpandedFrames(elements, containerSize, original, ^id(NSArray *subset, CGSize size) {
@@ -346,16 +490,25 @@
  
  // Preference updates
  void refreshPrefs() {
-@@ -93,6 +301,8 @@
+@@ -93,6 +443,17 @@
  
  	enabled = [([settings objectForKey:@"enabled"] ?: @(YES)) boolValue];
  	rows = [([settings objectForKey:@"rows"] ?: @(2)) intValue];
 +	if (rows < 1) rows = 1;
-+	if (rows > 3) rows = 3;
++	if (rows > 4) rows = 4;
++
++	rowBreaks = nil;
++	rowAligns = nil;
++	MCParseRowLayout([settings objectForKey:@"rowLayout"]);
++
++	if (rowBreaks.count > 0) {
++		NSLog(@"[MoreComplications] layout=%@ breaks=%@ aligns=%@ rows=%d",
++		      [settings objectForKey:@"rowLayout"], rowBreaks, rowAligns, rows);
++	}
  }
  
  static void PreferencesChangedCallback(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-@@ -102,4 +312,5 @@
+@@ -102,4 +463,5 @@
  %ctor {
  	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback) PreferencesChangedCallback, (CFStringRef)[NSString stringWithFormat:@"%@.prefschanged", BUNDLE_ID], NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
  	refreshPrefs();
@@ -431,12 +584,15 @@
  @interface NSValue (WhyArentTheseDefinedAlready)
 --- a/prefs/Makefile
 +++ b/prefs/Makefile
-@@ -1,11 +1,14 @@
+@@ -1,11 +1,17 @@
 -TARGET = iphone:clang:latest:12.0 # need to set lower deployment target for skittyprefs
 +# iOS 16+ only (matches the package Depends). The old 12.0 target made
 +# @available() emit __isPlatformVersionAtLeast calls that the rootless link
 +# cannot resolve.
-+TARGET = iphone:clang:latest:16.0
++# SDK is pinned to 16.5: iOS 17 SDKs no longer ship
++# PrivateFrameworks/Preferences.framework, so "latest" fails with
++# "ld: framework 'Preferences' not found".
++TARGET = iphone:clang:16.5:16.0
  
  BUNDLE_NAME = MoreComplications
  MoreComplications_FILES = $(wildcard *.m) $(wildcard SkittyPrefs/*.m)
@@ -450,27 +606,141 @@
  include $(THEOS_MAKE_PATH)/bundle.mk
 --- a/prefs/Resources/Root.plist
 +++ b/prefs/Resources/Root.plist
-@@ -76,7 +76,7 @@
+@@ -5,7 +5,7 @@
+ 	<key>name</key>
+ 	<string>MoreComplications</string>
+ 	<key>subtitle</key>
+-	<string>By Skitty</string>
++	<string>iOS 17 移植 · DeepSeek (AI)</string>
+ 	<key>titleFontSize</key>
+ 	<real>38</real>
+ 	<key>subtitleFontSize</key>
+@@ -20,6 +20,14 @@
+ 	<array>
+ 		<dict>
+ 			<key>cell</key>
++			<string>PSGroupCell</string>
++			<key>label</key>
++			<string>总开关</string>
++			<key>footerText</key>
++			<string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
++		</dict>
++		<dict>
++			<key>cell</key>
+ 			<string>PSSwitchCell</string>
+ 			<key>default</key>
+ 			<true/>
+@@ -30,15 +38,15 @@
+ 			<key>key</key>
+ 			<string>enabled</string>
  			<key>label</key>
- 			<string>Credits</string>
+-			<string>Enabled</string>
++			<string>启用插件</string>
+ 		</dict>
+ 		<dict>
+ 			<key>cell</key>
+ 			<string>PSGroupCell</string>
+ 			<key>label</key>
+-			<string>Configuration</string>
++			<string>行数</string>
  			<key>footerText</key>
--			<string>© Skitty 2024</string>
-+			<string>© Skitty 2024 · iOS 17 port, build and packaging by DeepSeek (AI-generated)</string>
+-			<string>Settings changes require a respring.</string>
++			<string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
  		</dict>
  		<dict>
  			<key>cellClass</key>
+@@ -52,21 +60,39 @@
+ 			<key>min</key>
+ 			<real>1</real>
+ 			<key>max</key>
+-			<real>3</real>
++			<real>4</real>
+ 			<key>key</key>
+ 			<string>rows</string>
+ 			<key>label</key>
+-			<string>Rows: %i</string>
++			<string>行数：%i</string>
+ 		</dict>
+ 		<dict>
+ 			<key>cell</key>
+ 			<string>PSGroupCell</string>
++			<key>footerText</key>
++			<string>下面的高级选项可以按行指定「放几个、怎么对齐」。不填就是现在的自动分行 + 居中。</string>
++		</dict>
++		<dict>
++			<key>cell</key>
++			<string>PSChildPaneSpecifier</string>
++			<key>label</key>
++			<string>高级选项</string>
++			<key>title</key>
++			<string>高级选项</string>
++			<key>File</key>
++			<string>Advanced</string>
++		</dict>
++		<dict>
++			<key>cell</key>
++			<string>PSGroupCell</string>
++			<key>footerText</key>
++			<string>以上所有修改都需要注销（Respring）后才会生效。</string>
+ 		</dict>
+ 		<dict>
+ 			<key>cell</key>
+ 			<string>PSButtonCell</string>
+ 			<key>label</key>
+-			<string>Respring</string>
++			<string>注销生效（Respring）</string>
+ 			<key>action</key>
+ 			<string>respring</string>
+ 		</dict>
+@@ -74,9 +100,9 @@
+ 			<key>cell</key>
+ 			<string>PSGroupCell</string>
+ 			<key>label</key>
+-			<string>Credits</string>
++			<string>鸣谢</string>
+ 			<key>footerText</key>
+-			<string>© Skitty 2024</string>
++			<string>© Skitty 2024（原作者）· iOS 17 移植、构建与打包：DeepSeek (AI)</string>
+ 		</dict>
+ 		<dict>
+ 			<key>cellClass</key>
+@@ -86,7 +112,7 @@
+ 			<key>twitter</key>
+ 			<string>Skittyblock</string>
+ 			<key>subtitle</key>
+-			<string>Developer</string>
++			<string>原作者</string>
+ 			<key>imageURL</key>
+ 			<string>https://github.com/skittyblock.png</string>
+ 		</dict>
+--- a/prefs/Resources/Info.plist
++++ b/prefs/Resources/Info.plist
+@@ -13,11 +13,11 @@
+ 	<key>CFBundlePackageType</key>
+ 	<string>BNDL</string>
+ 	<key>CFBundleShortVersionString</key>
+-	<string>1.0.0</string>
++	<string>1.6.0</string>
+ 	<key>CFBundleSignature</key>
+ 	<string>????</string>
+ 	<key>CFBundleVersion</key>
+-	<string>1.0</string>
++	<string>1.6</string>
+ 	<key>NSPrincipalClass</key>
+ 	<string>MCSettingsController</string>
+ </dict>
 --- a/control
 +++ b/control
 @@ -1,12 +1,9 @@
  Package: xyz.skitty.morecomplications
  Name: MoreComplications
 -Version: 1.0
-+Version: 1.3
++Version: 1.6
  Architecture: iphoneos-arm
 -Description: Add more complications to your Lock Screen.
 -Maintainer: Skitty
 -Author: Skitty
-+Description: Add more complications to your Lock Screen (iOS 16 + iOS 17). iOS 17 support, build and packaging generated by DeepSeek (AI). Universal arm64 + arm64e.
++Description: Add more complications to your Lock Screen (iOS 16 + iOS 17). Per-row layout in a collapsed Advanced pane, Chinese settings. iOS 17 support, build and packaging generated by DeepSeek (AI). Universal arm64 + arm64e.
 +Maintainer: DeepSeek (AI-generated)
 +Author: DeepSeek (AI-generated)
  Section: Tweaks
@@ -478,6 +748,17 @@
 -Icon: https://skitty.xyz/repo/icons/xyz.skitty.morecomplications.png
 -Depiction: https://skitty.xyz/repo/depictions/xyz.skitty.morecomplications/
 -SileoDepiction: https://skitty.xyz/repo/depictions/xyz.skitty.morecomplications/sileo.json
+--- a/Makefile
++++ b/Makefile
+@@ -1,5 +1,7 @@
+ export ARCHS = arm64 arm64e
+-export TARGET = iphone:clang:latest:16.0
++# Pin the SDK: iOS 17 SDKs dropped PrivateFrameworks/Preferences.framework, which
++# the preferences bundle needs to link. iPhoneOS16.5.sdk still has it.
++export TARGET = iphone:clang:16.5:16.0
+ 
+ INSTALL_TARGET_PROCESSES = SpringBoard PosterBoard
+ SUBPROJECTS = tweak prefs
 --- a/README.md
 +++ b/README.md
 @@ -1,5 +1,10 @@

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>title</key>
+	<string>高级选项</string>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>行布局（可选）</string>
+			<key>footerText</key>
+			<string>一行一个组合：数量 + 对齐（空格分隔）。C 居中，J 两端对齐（该行需 2 个及以上组件），L 靠左，R 靠右。例如 2C 1J 表示第一行 2 个居中、第二行 1 个两端对齐；1L 2C 表示第一行单个组件靠左。留空则由系统自动分行并居中。组件顺序就是编辑界面里看到的顺序。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSTextFieldSpecifier</string>
+			<key>defaults</key>
+			<string>xyz.skitty.morecomplications</string>
+			<key>PostNotification</key>
+			<string>xyz.skitty.morecomplications.prefschanged</string>
+			<key>key</key>
+			<string>rowLayout</string>
+			<key>label</key>
+			<string>行布局</string>
+			<key>default</key>
+			<string></string>
+			<key>placeholder</key>
+			<string>2C 1J</string>
+			<key>autocapitalizationType</key>
+			<string>AllCharacters</string>
+			<key>autocorrectionType</key>
+			<string>No</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>说明</string>
+			<key>footerText</key>
+			<string>数量是「这一行最多放几个」，组件不够时后面的行不出现；超出总数的组件会继续自动往下排。J 只对 2 个及以上组件有意义，单组件行请用 L 或 R。修改后需要注销（Respring）才会生效。</string>
+		</dict>
+	</array>
+</dict>
+</plist>

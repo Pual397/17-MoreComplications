@@ -5,7 +5,7 @@
 	<key>name</key>
 	<string>MoreComplications</string>
 	<key>subtitle</key>
-	<string>By Skitty</string>
+	<string>iOS 17 移植 · DeepSeek (AI)</string>
 	<key>titleFontSize</key>
 	<real>38</real>
 	<key>subtitleFontSize</key>
@@ -20,6 +20,14 @@
 	<array>
 		<dict>
 			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>总开关</string>
+			<key>footerText</key>
+			<string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
 			<string>PSSwitchCell</string>
 			<key>default</key>
 			<true/>
@@ -30,15 +38,15 @@
 			<key>key</key>
 			<string>enabled</string>
 			<key>label</key>
-			<string>Enabled</string>
+			<string>启用插件</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>Configuration</string>
+			<string>行数</string>
 			<key>footerText</key>
-			<string>Settings changes require a respring.</string>
+			<string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
 		</dict>
 		<dict>
 			<key>cellClass</key>
@@ -52,21 +60,39 @@
 			<key>min</key>
 			<real>1</real>
 			<key>max</key>
-			<real>3</real>
+			<real>4</real>
 			<key>key</key>
 			<string>rows</string>
 			<key>label</key>
-			<string>Rows: %i</string>
+			<string>行数：%i</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>下面的高级选项可以按行指定「放几个、怎么对齐」。不填就是现在的自动分行 + 居中。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSChildPaneSpecifier</string>
+			<key>label</key>
+			<string>高级选项</string>
+			<key>title</key>
+			<string>高级选项</string>
+			<key>File</key>
+			<string>Advanced</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>以上所有修改都需要注销（Respring）后才会生效。</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSButtonCell</string>
 			<key>label</key>
-			<string>Respring</string>
+			<string>注销生效（Respring）</string>
 			<key>action</key>
 			<string>respring</string>
 		</dict>
@@ -74,9 +100,9 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>Credits</string>
+			<string>鸣谢</string>
 			<key>footerText</key>
-			<string>© Skitty 2024 · iOS 17 port, build and packaging by DeepSeek (AI-generated)</string>
+			<string>© Skitty 2024（原作者）· iOS 17 移植、构建与打包：DeepSeek (AI)</string>
 		</dict>
 		<dict>
 			<key>cellClass</key>
@@ -86,7 +112,7 @@
 			<key>twitter</key>
 			<string>Skittyblock</string>
 			<key>subtitle</key>
-			<string>Developer</string>
+			<string>原作者</string>
 			<key>imageURL</key>
 			<string>https://github.com/skittyblock.png</string>
 		</dict>

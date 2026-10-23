@@ -11,6 +11,19 @@ static NSMutableDictionary *settings;
 static BOOL enabled = YES;
 static int rows = 2;
 
+// Per-row layout, parsed from e.g. "2C 1J" (row 1: two elements centered,
+// row 2: one element justified between both edges). L/R apply to single
+// elements that should hug one edge.
+typedef NS_ENUM(int, MCAlignment) {
+	MCAlignmentCenter = 0,
+	MCAlignmentJustify,
+	MCAlignmentLeft,
+	MCAlignmentRight,
+};
+
+static NSArray<NSNumber *> *rowBreaks = nil;  // 每行最多几个组件，例如 [2, 1]
+static NSArray<NSNumber *> *rowAligns = nil;  // 每行对齐方式，例如 [J, C]
+
 #pragma mark - logging
 
 // Hooks that landed are logged once, so "install the tweak and check Console"
@@ -54,30 +67,6 @@ static CGSize MCRowContainerSize(CGSize containerSize, int rowCount) {
 	return size;
 }
 
-// Greedy packing: every element goes into the first row that still has room.
-static NSArray<NSArray *> *MCGroupElements(NSArray *elements, int rowCount) {
-	NSMutableArray<NSMutableArray *> *groups = [NSMutableArray arrayWithCapacity:rowCount];
-	NSMutableArray<NSNumber *> *widths = [NSMutableArray arrayWithCapacity:rowCount];
-	for (int i = 0; i < rowCount; i++) {
-		[groups addObject:[NSMutableArray array]];
-		[widths addObject:@0];
-	}
-
-	for (CSComplicationLayoutElement *element in elements) {
-		// An element without gridWidth is treated as a full row of its own.
-		long long width = [element respondsToSelector:@selector(gridWidth)] ? [element gridWidth] : ELEMENTS_PER_ROW;
-		for (int i = 0; i < rowCount; i++) {
-			long long used = [widths[i] longLongValue];
-			if (used + width <= ELEMENTS_PER_ROW) {
-				widths[i] = @(used + width);
-				[groups[i] addObject:element];
-				break;
-			}
-		}
-	}
-	return groups;
-}
-
 // True when every frame sits on the same baseline, which is exactly the
 // situation this tweak replaces with several rows. Anything already laid out
 // over several rows (or a sidebar column) is left untouched, which also makes
@@ -101,13 +90,165 @@ static BOOL MCFramesAreSingleRow(NSDictionary *frames) {
 	return YES;
 }
 
-static void MCMergeFrames(NSMutableDictionary *merged, NSDictionary *frames, CGFloat yOffset) {
-	if (![frames isKindOfClass:[NSDictionary class]]) return;
+// MARK: - row layout
 
-	for (id key in frames) {
-		id value = frames[key];
-		if (![value isKindOfClass:[NSValue class]]) continue;
-		CGRect frame = [(NSValue *)value CGRectValue];
+static int MCEffectiveRows(void) {
+	int count = rows;
+	if ((int)rowBreaks.count > count) count = (int)rowBreaks.count;
+	if ((int)rowAligns.count > count) count = (int)rowAligns.count;
+	if (count < 1) count = 1;
+	return count;
+}
+
+// 一行一个 token，形如 "2C 1J"：数量 + 对齐（C 居中 / J 两端 / L 左 / R 右）。
+// 解析后拆成 rowBreaks（每行最多几个）和 rowAligns（每行对齐方式）两份数据，
+// 后面的分行、对齐逻辑只认这两份数据。
+static void MCParseRowLayout(NSString *string) {
+	rowBreaks = nil;
+	rowAligns = nil;
+	if (![string isKindOfClass:[NSString class]] || string.length == 0) return;
+
+	NSMutableArray<NSNumber *> *counts = [NSMutableArray array];
+	NSMutableArray<NSNumber *> *aligns = [NSMutableArray array];
+	NSArray *tokens = [string componentsSeparatedByCharactersInSet:
+	                   [NSCharacterSet characterSetWithCharactersInString:@" ,;\t\n"]];
+
+	for (NSString *token in tokens) {
+		NSString *trimmed = [[token stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] uppercaseString];
+		if (trimmed.length == 0) continue;
+
+		NSUInteger digits = 0;
+		while (digits < trimmed.length && isdigit((int)[trimmed characterAtIndex:digits])) digits++;
+
+		int count = 1;
+		if (digits > 0) {
+			count = [[trimmed substringToIndex:digits] intValue];
+			if (count <= 0) count = 1;
+		}
+
+		MCAlignment align = MCAlignmentCenter;
+		if (digits < trimmed.length) {
+			unichar letter = [trimmed characterAtIndex:digits];
+			if (letter == 'J') align = MCAlignmentJustify;
+			else if (letter == 'L') align = MCAlignmentLeft;
+			else if (letter == 'R') align = MCAlignmentRight;
+		}
+
+		[counts addObject:@(count)];
+		[aligns addObject:@(align)];
+		if (counts.count >= 8) break;  // sanity cap
+	}
+
+	rowBreaks = counts.count ? counts : nil;
+	rowAligns = aligns.count ? aligns : nil;
+}
+
+static MCAlignment MCAlignmentForRow(NSUInteger index) {
+	if (index < rowAligns.count) return (MCAlignment)[rowAligns[index] intValue];
+	return MCAlignmentCenter;
+}
+
+// Packs elements by the system's own capacity (4 grid units per row), adding
+// rows until `maxRows` is reached. Anything that still does not fit is left
+// unplaced; MCExpandedFrames keeps its original frame in that case.
+static void MCAppendAutoRows(NSMutableArray<NSMutableArray *> *groups, NSArray *elements, NSUInteger maxRows) {
+	if (elements.count == 0 || groups.count >= maxRows) return;
+
+	[groups addObject:[NSMutableArray array]];
+	NSUInteger row = groups.count - 1;
+	long long used = 0;
+
+	for (id element in elements) {
+		long long width = [element respondsToSelector:@selector(gridWidth)] ? [element gridWidth] : ELEMENTS_PER_ROW;
+		if (used + width > ELEMENTS_PER_ROW) {
+			if (groups.count >= maxRows) break;
+			[groups addObject:[NSMutableArray array]];
+			row = groups.count - 1;
+			used = 0;
+		}
+		[groups[row] addObject:element];
+		used += width;
+	}
+}
+
+// Rows listed in "每行数量" take exactly that many elements, in the order the OS
+// hands them over; whatever is left keeps packing automatically.
+static NSArray<NSArray *> *MCGroupElementsConfigured(NSArray *elements, int rowCount) {
+	NSMutableArray<NSMutableArray *> *groups = [NSMutableArray array];
+	NSUInteger maxRows = (NSUInteger)MAX(rowCount, 1);
+
+	if (rowBreaks.count == 0) {
+		MCAppendAutoRows(groups, elements, maxRows);
+		return groups;
+	}
+
+	NSUInteger index = 0;
+	for (NSUInteger row = 0; row < rowBreaks.count && row < maxRows && index < elements.count; row++) {
+		[groups addObject:[NSMutableArray array]];
+		NSUInteger take = (NSUInteger)[rowBreaks[row] intValue];
+		for (NSUInteger k = 0; k < take && index < elements.count; k++, index++) {
+			[groups[row] addObject:elements[index]];
+		}
+	}
+
+	if (index < elements.count) {
+		MCAppendAutoRows(groups, [elements subarrayWithRange:NSMakeRange(index, elements.count - index)], maxRows);
+	}
+	return groups;
+}
+
+// Places one row's frames: y offset for the row, x per alignment.
+// C keeps the OS' own centered spacing, L/R shift the whole row to an edge,
+// J spreads the free space so the first element hugs the left edge and the
+// last one hugs the right edge.
+static void MCMergeRowAligned(NSMutableDictionary *merged,
+                              NSDictionary *rowFrames,
+                              CGFloat yOffset,
+                              CGFloat containerWidth,
+                              MCAlignment alignment) {
+	if (![rowFrames isKindOfClass:[NSDictionary class]] || rowFrames.count == 0) return;
+
+	NSArray *keys = [[rowFrames allKeys] sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
+		CGFloat xa = [(NSValue *)rowFrames[a] CGRectValue].origin.x;
+		CGFloat xb = [(NSValue *)rowFrames[b] CGRectValue].origin.x;
+		if (xa < xb) return NSOrderedAscending;
+		if (xa > xb) return NSOrderedDescending;
+		return NSOrderedSame;
+	}];
+
+	CGFloat total = 0;
+	CGFloat minX = CGFLOAT_MAX;
+	CGFloat maxX = -CGFLOAT_MAX;
+	for (id key in keys) {
+		CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
+		total += frame.size.width;
+		minX = MIN(minX, frame.origin.x);
+		maxX = MAX(maxX, CGRectGetMaxX(frame));
+	}
+	NSUInteger count = keys.count;
+
+	if (alignment == MCAlignmentJustify && count < 2) alignment = MCAlignmentCenter;
+
+	if (alignment == MCAlignmentJustify && total <= containerWidth) {
+		CGFloat gap = (containerWidth - total) / (CGFloat)(count - 1);
+		CGFloat cursor = 0;
+		for (id key in keys) {
+			CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
+			frame.origin.x = cursor;
+			frame.origin.y += yOffset;
+			merged[key] = [NSValue valueWithCGRect:frame];
+			cursor += frame.size.width + gap;
+		}
+		return;
+	}
+
+	CGFloat dx = 0;
+	if (alignment == MCAlignmentLeft) dx = -minX;
+	else if (alignment == MCAlignmentRight) dx = containerWidth - maxX;
+
+	for (id key in keys) {
+		CGRect frame = [(NSValue *)rowFrames[key] CGRectValue];
+		frame.origin.x += dx;
 		frame.origin.y += yOffset;
 		merged[key] = [NSValue valueWithCGRect:frame];
 	}
@@ -119,13 +260,14 @@ static NSDictionary *MCExpandedFrames(NSArray *elements,
                                       CGSize containerSize,
                                       NSDictionary *originalFrames,
                                       id (^call)(NSArray *subset, CGSize size)) {
-	if (!enabled || rows <= 1) return nil;
+	int rowCount = MCEffectiveRows();
+	if (!enabled || rowCount <= 1) return nil;
 	if (!MCFramesAreSingleRow(originalFrames)) return nil;
 
-	CGSize rowSize = MCRowContainerSize(containerSize, rows);
+	CGSize rowSize = MCRowContainerSize(containerSize, rowCount);
 	if (rowSize.height <= 0 || rowSize.width <= 0) return nil;
 
-	NSArray<NSArray *> *groups = MCGroupElements(elements, rows);
+	NSArray<NSArray *> *groups = MCGroupElementsConfigured(elements, rowCount);
 	NSMutableDictionary *merged = [NSMutableDictionary dictionary];
 	double spacing = MCSpacing();
 
@@ -143,7 +285,7 @@ static NSDictionary *MCExpandedFrames(NSArray *elements,
 		} else if ([result isKindOfClass:[NSDictionary class]]) {
 			frames = result;
 		}
-		MCMergeFrames(merged, frames, i * (rowSize.height + spacing));
+		MCMergeRowAligned(merged, frames, i * (rowSize.height + spacing), containerSize.width, MCAlignmentForRow(i));
 	}
 
 	if (merged.count == 0) return nil;
@@ -170,16 +312,15 @@ static CSComplicationLayout *MCLayoutWithFrames(NSDictionary *frames, long long 
 
 // iOS 16: raise the element limit.
 + (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements {
-	if (!enabled || rows <= 1 || !element) return %orig;
+	if (!enabled || MCEffectiveRows() <= 1 || !element) return %orig;
 
 	long long totalWidth = 0;
 	for (CSComplicationLayoutElement *existing in elements) {
 		if (![existing respondsToSelector:@selector(gridWidth)]) return %orig;
 		totalWidth += [existing gridWidth];
-	}
-	if (![element respondsToSelector:@selector(gridWidth)]) return %orig;
+	}	if (![element respondsToSelector:@selector(gridWidth)]) return %orig;
 
-	if (totalWidth + [element gridWidth] <= (long long)rows * ELEMENTS_PER_ROW) {
+	if (totalWidth + [element gridWidth] <= (long long)MCEffectiveRows() * ELEMENTS_PER_ROW) {
 		MCLogOnce(@"canAddElement:toElements: hooked");
 		return true;
 	}
@@ -189,14 +330,14 @@ static CSComplicationLayout *MCLayoutWithFrames(NSDictionary *frames, long long 
 // iOS 17: the same limit, now aware of the layout style.
 // Only ever widen the limit here, never tighten what the OS allows.
 + (bool)canAddElement:(CSComplicationLayoutElement *)element toElements:(NSArray<CSComplicationLayoutElement *> *)elements layoutStyle:(long long)layoutStyle {
-	if (!enabled || rows <= 1 || !element) return %orig;
+	if (!enabled || MCEffectiveRows() <= 1 || !element) return %orig;
 
 	long long totalWidth = 0;
 	for (CSComplicationLayoutElement *existing in elements) {
 		totalWidth += [existing gridWidth];
 	}
 
-	if (totalWidth + [element gridWidth] <= (long long)rows * ELEMENTS_PER_ROW) {
+	if (totalWidth + [element gridWidth] <= (long long)MCEffectiveRows() * ELEMENTS_PER_ROW) {
 		MCLogOnce(@"canAddElement:toElements:layoutStyle: hooked");
 		return true;
 	}
@@ -206,10 +347,11 @@ static CSComplicationLayout *MCLayoutWithFrames(NSDictionary *frames, long long 
 // Grow the complication container so the extra rows have room.
 + (double)complicationContainerHeight {
 	double height = %orig;
-	if (!enabled || rows <= 1 || height <= 0) return height;
+	int rowCount = MCEffectiveRows();
+	if (!enabled || rowCount <= 1 || height <= 0) return height;
 
 	double spacing = MCSpacing();
-	return height * rows + spacing * (rows - 1);
+	return height * rowCount + spacing * (rowCount - 1);
 }
 
 // iOS 16 layout: a plain element -> NSValue(CGRect) dictionary.
@@ -302,7 +444,16 @@ void refreshPrefs() {
 	enabled = [([settings objectForKey:@"enabled"] ?: @(YES)) boolValue];
 	rows = [([settings objectForKey:@"rows"] ?: @(2)) intValue];
 	if (rows < 1) rows = 1;
-	if (rows > 3) rows = 3;
+	if (rows > 4) rows = 4;
+
+	rowBreaks = nil;
+	rowAligns = nil;
+	MCParseRowLayout([settings objectForKey:@"rowLayout"]);
+
+	if (rowBreaks.count > 0) {
+		NSLog(@"[MoreComplications] layout=%@ breaks=%@ aligns=%@ rows=%d",
+		      [settings objectForKey:@"rowLayout"], rowBreaks, rowAligns, rows);
+	}
 }
 
 static void PreferencesChangedCallback(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {

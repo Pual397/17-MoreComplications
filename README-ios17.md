@@ -174,27 +174,73 @@ bundle -> 237328 bytes
 
 
 
+## 4.3 行布局（1.6）
+
+真机（iOS 17）确认：多行、容器高度都正常。设置面板从 1.5 起是**中文**；1.6 把行布局收进「高级选项」子页面，主页只留三个常用项。
+
+### 主页
+
+```
+总开关     启用插件
+行数       行数：2  [- +]
+           高级选项 ›          ← 点进去才是行布局
+           注销生效（Respring）
+鸣谢
+```
+
+### 高级选项（子页面 `Advanced.plist`）
+
+一个文本框，语法是「一行一个组合：数量 + 对齐」：
+
+```
+2C 1J     第 1 行 2 个居中；第 2 行 1 个两端对齐
+1L 2C     第 1 行（单个组件）靠左；第 2 行 2 个居中
+2C 2C 1R  三行
+(空)      系统自动分行 + 全部居中（= 1.3 的行为）
+```
+
+| 字母 | 含义 |
+| --- | --- |
+| `C` | 居中（默认） |
+| `J` | 两端对齐：第一个贴左、最后一个贴右，空隙均分（**该行需 ≥2 个组件**） |
+| `L` | 靠左 |
+| `R` | 靠右 |
+
+规则：
+
+- 数量是「这一行最多放几个」：组件不够时，后面的行不出现；
+- 超出总数的组件继续按系统容量往下排（不会丢）；
+- 组件顺序 = 编辑界面里的顺序，所以「谁在第几行」由顺序 + 断行点决定；
+- `J` 遇到单组件行自动退化为 `C`，不会把组件拉宽；
+- 组件**尺寸不变，只改位置**；
+- 最终行数 = max(`行数` 设置, token 个数)，容器高度随之增加；
+- 留空 = 自动填充（4 格一行、居中），行为与 1.3 完全一致。
+
 ## 5. 需要你在设备上确认的地方（诚实说明）
 
-补丁是基于 iOS 17 的头文件写的，**没有在真机上验证过**（这边没有 iOS 17 设备）。以下两点属于「头文件看不出、只能实测」的部分：
+补丁是基于 iOS 17 的头文件写的。1.3 起已在 iOS 17 真机验证「多行 + 容器变高」可用，1.5 的断行/对齐属于纯几何计算（组件尺寸取自系统返回的帧，只改 x/y）：
 
-1. **容器可用高度**：17 上容器高度可能由 `CSProminentLayoutController` / `CSComplicationContainerViewController` 自己算，而不只依赖 `+complicationContainerHeight`。若出现「多行了但是被裁切」，要再补钩子。
-2. **编辑器的数量校验入口**：若 17 的编辑界面改用了别的类（不在 `CSGraphicComplicationLayoutProvider` 上），「添加第 3 个」仍会被挡。日志里看不到 `canAddElement … hooked` 就说明是这种情况。
-
-两处都能补，只是需要设备上的日志来定位。把 Console 里 `[MoreComplications]` 的几行发回来即可。
+1. 每行数量填 `2,1` → 第 1 行 2 个、第 2 行 1 个；
+2. 对齐填 `C R` → 第 2 行那个组件贴右边；
+3. 对齐填 `J C` → 第 1 行两个组件分贴左右两边；
+4. 两个都清空 → 回到自动填充；
+5. `J` 看起来没变化，通常是那行只有 1 个组件（按约定退化为居中）；
 
 ## 6. 文件变更
 
 ```
 tweak/Tweak.h             重写：补全 16/17 接口（含 CSComplicationLayout）
 tweak/Tweak.x             重写：双路径排布 + 幂等单行检测 + 日志
-control                   Version 1.3；Author/Maintainer 标注 DeepSeek (AI-generated)；
+                          1.4：行布局串解析（2C 1J）+ 行内对齐（C/J/L/R）
+control                   Version 1.4；Author/Maintainer 标注 DeepSeek (AI-generated)；
                           去掉指向上游仓库的 Depiction（那个页面还是 1.0 的说明）
 tools/mark-arm64e.py      1.2.1 的临时打标签脚本（1.3 起不再使用，留作记录）
-prefs/Makefile            部署目标 12.0 → 16.0；加 -Wno-error=deprecated-declarations
-prefs/Resources/Root.plist  Credits 脚注注明 iOS 17 移植/打包由 DeepSeek 生成
+prefs/Makefile            部署目标 12.0 → 16.0；加 -Wno-error=deprecated-declarations；
+                          SDK 固定 16.5（17 SDK 删了 Preferences.framework）
+prefs/Resources/Root.plist  Credits 脚注注明 iOS 17 移植/打包由 DeepSeek 生成；
+                          1.4 新增 Row layout 文本框（PSTextFieldSpecifier）
 prefs/SkittyPrefs/        vendor 进来（上游 git 子模块，13 个文件），保证可直接打包
-Makefile                  TARGET 保持 16.0（低版本部署目标，17 上照常加载）
+Makefile                  TARGET 固定 iphone:clang:16.5:16.0（同上，SDK 原因）
 README.md                 增加 iOS 17 说明
 README-ios17.md           本文
 morecomplications-ios17.patch   相对上游的 unified diff
