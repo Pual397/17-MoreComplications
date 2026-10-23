@@ -1,99 +1,135 @@
-#import "MCTextFieldCell.h"
-#import <Preferences/PSSpecifier.h>
-
-// PSTextFieldSpecifier only drew its label on some bootstraps, so the layout
-// field uses a cell that puts a real UITextField in the content view and writes
-// straight to the preference domain.
-
-static NSString *MCDefaultDomain(PSSpecifier *specifier) {
-	NSString *domain = [specifier propertyForKey:@"defaults"];
-	return domain.length ? domain : @"xyz.skitty.morecomplications";
-}
-
-static NSString *MCReadPreference(PSSpecifier *specifier) {
-	NSString *key = [specifier propertyForKey:@"key"];
-	if (key.length == 0) return @"";
-
-	CFPropertyListRef value = CFPreferencesCopyAppValue((__bridge CFStringRef)key,
-	                                                    (__bridge CFStringRef)MCDefaultDomain(specifier));
-	NSString *string = @"";
-	if ([(__bridge id)value isKindOfClass:[NSString class]]) {
-		string = [(__bridge id)value copy];
-	}
-	if (value) CFRelease(value);
-	return string;
-}
-
-static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
-	NSString *key = [specifier propertyForKey:@"key"];
-	if (key.length == 0) return;
-
-	NSString *domain = MCDefaultDomain(specifier);
-	CFPreferencesSetAppValue((__bridge CFStringRef)key, (__bridge CFStringRef)(string ?: @""),
-	                         (__bridge CFStringRef)domain);
-	CFPreferencesAppSynchronize((__bridge CFStringRef)domain);
-
-	NSString *notification = [specifier propertyForKey:@"PostNotification"];
-	CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
-	                                     (__bridge CFStringRef)(notification.length ? notification : @"xyz.skitty.morecomplications.prefschanged"),
-	                                     NULL, NULL, true);
-}
-
-@implementation MCTextFieldCell {
-	UITextField *_textField;
-}
-
-- (instancetype)initWithStyle:(UITableViewCellStyle)style
-              reuseIdentifier:(NSString *)reuseIdentifier
-                    specifier:(PSSpecifier *)specifier {
-	self = [super initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:reuseIdentifier specifier:specifier];
-	if (self) {
-		self.selectionStyle = UITableViewCellSelectionStyleNone;
-
-		_textField = [[UITextField alloc] init];
-		_textField.textAlignment = NSTextAlignmentRight;
-		_textField.autocapitalizationType = UITextAutocapitalizationTypeAllCharacters;
-		_textField.autocorrectionType = UITextAutocorrectionTypeNo;
-		_textField.spellCheckingType = UITextSpellCheckingTypeNo;
-		_textField.returnKeyType = UIReturnKeyDone;
-		_textField.clearButtonMode = UITextFieldViewModeWhileEditing;
-		_textField.font = [UIFont systemFontOfSize:17];
-		_textField.adjustsFontSizeToFitWidth = YES;
-		_textField.minimumFontSize = 12;
-		if (@available(iOS 13.0, *)) {
-			_textField.textColor = [UIColor labelColor];
-		} else {
-			_textField.textColor = [UIColor darkTextColor];
-		}
-		_textField.placeholder = [specifier propertyForKey:@"placeholder"] ?: @"";
-		_textField.text = MCReadPreference(specifier);
-		[_textField addTarget:self action:@selector(textDidChange:) forControlEvents:UIControlEventEditingChanged];
-		[self.contentView addSubview:_textField];
-	}
-	return self;
-}
-
-- (void)layoutSubviews {
-	[super layoutSubviews];
-
-	CGRect bounds = self.contentView.bounds;
-	CGFloat width = MIN(bounds.size.width * 0.55, 220.0);
-	_textField.frame = CGRectMake(bounds.size.width - width - 16.0, 0.0, width, bounds.size.height);
-}
-
-- (void)refreshCellContentsWithSpecifier:(PSSpecifier *)specifier {
-	[super refreshCellContentsWithSpecifier:specifier];
-	if (!_textField.isFirstResponder) {
-		_textField.text = MCReadPreference(specifier);
-	}
-}
-
-- (void)textDidChange:(UITextField *)textField {
-	MCWritePreference([self specifier], textField.text ?: @"");
-}
-
-- (void)dealloc {
-	[_textField removeTarget:self action:@selector(textDidChange:) forControlEvents:UIControlEventEditingChanged];
-}
-
-@end
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>MoreComplications</string>
+	<key>titleFontSize</key>
+	<real>38</real>
+	<key>tintColor</key>
+	<string>#53b567</string>
+	<key>textColor</key>
+	<string>#ffffff</string>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>总开关</string>
+			<key>footerText</key>
+			<string>关闭后完全恢复系统原本的单行锁屏小组件行为，不再参与排版。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>xyz.skitty.morecomplications</string>
+			<key>PostNotification</key>
+			<string>xyz.skitty.morecomplications.prefschanged</string>
+			<key>key</key>
+			<string>enabled</string>
+			<key>label</key>
+			<string>启用插件</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>行数</string>
+			<key>footerText</key>
+			<string>锁屏小组件区域最多显示几行。调大后小组件区域会一起变高，可以放下更多行。</string>
+		</dict>
+		<dict>
+			<key>cellClass</key>
+			<string>SPStepperCell</string>
+			<key>defaults</key>
+			<string>xyz.skitty.morecomplications</string>
+			<key>PostNotification</key>
+			<string>xyz.skitty.morecomplications.prefschanged</string>
+			<key>default</key>
+			<real>2</real>
+			<key>min</key>
+			<real>1</real>
+			<key>max</key>
+			<real>4</real>
+			<key>key</key>
+			<string>rows</string>
+			<key>label</key>
+			<string>行数：%i</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>布局功能</string>
+			<key>footerText</key>
+			<string>格式：一行一个组合「数量 + 对齐」，空格分隔。C 居中、J 两端对齐（该行需 2 个及以上组件）、L 靠左、R 靠右。例：2C 1J = 第一行 2 个居中、第二行 1 个两端对齐；1L 2C = 第一行单个组件靠左。留空 = 系统自动分行并居中。组件顺序就是编辑界面里的顺序。</string>
+		</dict>
+		<dict>
+			<key>cellClass</key>
+			<string>MCTextFieldCell</string>
+			<key>defaults</key>
+			<string>xyz.skitty.morecomplications</string>
+			<key>PostNotification</key>
+			<string>xyz.skitty.morecomplications.prefschanged</string>
+			<key>key</key>
+			<string>rowLayout</string>
+			<key>label</key>
+			<string>布局</string>
+			<key>placeholder</key>
+			<string>2C 1J</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>以上所有修改都需要注销（Respring）后才会生效。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>注销生效（Respring）</string>
+			<key>action</key>
+			<string>respring</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>鸣谢</string>
+			<key>footerText</key>
+			<string>© Skitty 2024（原作者）</string>
+		</dict>
+		<dict>
+			<key>cellClass</key>
+			<string>SPCreditCell</string>
+			<key>label</key>
+			<string>Skitty</string>
+			<key>twitter</key>
+			<string>Skittyblock</string>
+			<key>subtitle</key>
+			<string>原作者</string>
+			<key>imageURL</key>
+			<string>https://github.com/skittyblock.png</string>
+		</dict>
+		<dict>
+			<key>cellClass</key>
+			<string>SPCreditCell</string>
+			<key>label</key>
+			<string>Pual397</string>
+			<key>twitter</key>
+			<string>Pual397</string>
+			<key>subtitle</key>
+			<string>ios17移植</string>
+			<key>imageURL</key>
+			<string>https://github.com/Pual397.png</string>
+		</dict>
+	</array>
+	<key>title</key>
+	<string>MoreComplications</string>
+</dict>
+</plist>
