@@ -40,7 +40,7 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 	                                     NULL, NULL, true);
 }
 
-@interface MCTextFieldCell () <UITextFieldDelegate>
+@interface MCTextFieldCell () <UITextFieldDelegate, UIGestureRecognizerDelegate>
 @end
 
 @implementation MCTextFieldCell {
@@ -127,8 +127,14 @@ static void MCWritePreference(PSSpecifier *specifier, NSString *string) {
 	if (view) {
 		_dismissTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissKeyboard)];
 		_dismissTap.cancelsTouchesInView = NO;
+		_dismissTap.delegate = self;
 		[view addGestureRecognizer:_dismissTap];
 	}
+}
+
+// Taps on the field itself must not dismiss the keyboard it just brought up.
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
+	return ![touch.view isDescendantOfView:_textField];
 }
 
 #pragma mark - Value handling
