@@ -151,4 +151,4 @@ dm.pl: building package `xyz.skitty.morecomplications:iphoneos-arm64' in `./pack
 
 === packages ===
 total 96
--rw-r--r--  1 runner  staff  46408 Oct 23 19:56 xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb
+-rw-r--r--  1 runner  staff  46496 Oct 23 20:01 xyz.skitty.morecomplications_1.6_iphoneos-arm64.deb
